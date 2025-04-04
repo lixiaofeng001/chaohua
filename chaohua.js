@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         微博超话助手专业版
 // @namespace    http://tampermonkey.net/
-// @version      4.0
+// @version      4.1
 // @description  专业级超话管理工具，支持内容池管理与实时监控
 // @author       YourName
 // @match        https://weibo.com/p/*/super_index*
@@ -137,6 +137,32 @@
             font-size: 13px;
             border-bottom: 1px solid var(--border-color);
         }
+        
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .start-btn {
+            background: #67c23a;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        
+        .stop-btn {
+            background: #f56c6c;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            transition: 0.3s;
+        }
     `);
 
     class ConfigManager {
@@ -144,7 +170,9 @@
             hashtags: ["#虞书欣卫枝#", "#虞书欣嘘国王在冬眠#"],
             separators: ["ysx", "✨"],
             bodies: ["比起天赋，我更相信反复练习的力量@虞书欣Esther ​​​"],
-            links: ["https://video.weibo.com/show?fid=1034:5024618210066442"]
+            links: ["https://video.weibo.com/show?fid=1034:5024618210066442"],
+            isRunning: false,
+            interval: 5 // 默认5分钟
         };
 
         static getConfig() {
@@ -152,28 +180,45 @@
             return {...this.DEFAULT_CONFIG, ...userConfig};
         }
 
-        static updateConfig(key, items) {
+        static updateConfig(key, value) {
             const config = this.getConfig();
-            config[key] = items;
+            config[key] = value;
             GM_setValue('user_config', config);
+            return config;
         }
     }
 
     class SuperDialog {
+        static instance = null;
+        timerId = null;
+
         constructor() {
+            if (SuperDialog.instance) return SuperDialog.instance;
+            
             this.dialog = null;
             this.isDragging = false;
             this.startX = 0;
             this.startY = 0;
             this.init();
+            
+            SuperDialog.instance = this;
         }
 
         init() {
             this.createDialog();
             this.bindEvents();
+            this.checkAutoStart();
+        }
+
+        checkAutoStart() {
+            const config = ConfigManager.getConfig();
+            if (config.isRunning) {
+                this.startPosting(config.interval);
+            }
         }
 
         createDialog() {
+            // 原有创建逻辑不变，在统计栏下方添加控制按钮
             this.dialog = document.createElement('div');
             this.dialog.className = 'super-dialog';
             this.dialog.innerHTML = `
@@ -183,6 +228,9 @@
                 </div>
                 <div class="stats-bar">
                     ${this.createStats()}
+                </div>
+                <div class="control-buttons">
+                    <button class="start-btn" id="toggleBtn">${ConfigManager.getConfig().isRunning ? '停止任务' : '启动任务'}</button>
                 </div>
                 <div class="dialog-body">
                     ${this.createListPanel('hashtags', '话题标签')}
@@ -197,6 +245,7 @@
             `;
             document.body.appendChild(this.dialog);
             this.renderAllLists();
+            this.updateButtonState();
         }
 
         createStats() {
@@ -228,6 +277,19 @@
             `;
         }
 
+        updateButtonState() {
+            const btn = this.dialog.querySelector('#toggleBtn');
+            if (ConfigManager.getConfig().isRunning) {
+                btn.classList.add('stop-btn');
+                btn.classList.remove('start-btn');
+                btn.textContent = '停止任务';
+            } else {
+                btn.classList.add('start-btn');
+                btn.classList.remove('stop-btn');
+                btn.textContent = '启动任务';
+            }
+        }
+
         bindEvents() {
             // 拖动处理
             const header = this.dialog.querySelector('.dialog-header');
@@ -237,6 +299,9 @@
 
             // 按钮事件
             this.dialog.addEventListener('click', (e) => {
+                if (e.target.id === 'toggleBtn') {
+                    this.handleToggleTask();
+                }
                 if (e.target.classList.contains('add-btn')) {
                     this.handleAddItem(e.target.dataset.key);
                 }
@@ -247,6 +312,56 @@
                     this.handleDeleteItem(e.target.closest('.list-item'));
                 }
             });
+        }
+
+        handleToggleTask() {
+            const config = ConfigManager.getConfig();
+            if (config.isRunning) {
+                this.stopPosting();
+            } else {
+                const input = prompt('请输入定时任务间隔时间（分钟）:', config.interval);
+                const minutes = parseInt(input);
+                if (!isNaN(minutes) && minutes > 0) {
+                    this.startPosting(minutes);
+                } else {
+                    alert('请输入有效的数字');
+                }
+            }
+        }
+
+        startPosting(minutes) {
+            this.stopPosting(); // 停止现有定时器
+            
+            ConfigManager.updateConfig('interval', minutes);
+            ConfigManager.updateConfig('isRunning', true);
+            
+            this.timerId = setInterval(() => {
+                WeiboPublisher.post();
+            }, minutes * 60 * 1000);
+            
+            this.updateButtonState();
+            this.addLog(`定时任务已启动，间隔 ${minutes} 分钟`);
+        }
+
+        stopPosting() {
+            if (this.timerId) {
+                clearInterval(this.timerId);
+                this.timerId = null;
+            }
+            ConfigManager.updateConfig('isRunning', false);
+            this.updateButtonState();
+            this.addLog('定时任务已停止');
+        }
+
+        addLog(message) {
+            const logs = GM_getValue('post_logs', []);
+            logs.push({
+                time: Date.now(),
+                content: message,
+                success: true
+            });
+            GM_setValue('post_logs', logs.slice(-100));
+            this.renderLogs();
         }
 
         // 拖动逻辑
@@ -443,11 +558,8 @@
         }
     }
 
-    // 初始化
+    // 初始化逻辑简化
     setTimeout(() => {
         new SuperDialog();
-        // 保留原有定时功能
-        setInterval(() => WeiboPublisher.post(), 
-            ConfigManager.getConfig().interval * 60 * 1000);
     }, 3000);
 })();
