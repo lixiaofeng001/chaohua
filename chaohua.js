@@ -27,8 +27,8 @@
 
         .super-dialog {
             position: fixed;
-            width: 800px;
-            height: 600px;
+            width: 1200px; /* 增大宽度 */
+            height: 900px; /* 增加高度 */
             background: var(--bg-color);
             border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.15);
@@ -39,6 +39,7 @@
             display: flex;
             flex-direction: column;
             user-select: none;
+            overflow-y: auto; /* 添加滚动条 */
         }
 
         .dialog-header {
@@ -55,38 +56,46 @@
         .dialog-body {
             flex: 1;
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            padding: 15px;
+            // grid-template-columns: 1fr 1fr 1fr 1fr; /* 四列布局 */
+            grid-template-columns: repeat(2, 1fr); /* 两列布局 */
+            grid-template-rows: repeat(3, minmax(200px, auto)); /* 自适应行高 */
+            gap: 10px;
+            padding: 2px 10px 2px 10px;
             overflow: hidden;
         }
 
         .list-panel {
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 12px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
+            flex: 1;
         }
 
         .list-title {
             font-weight: 500;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             color: var(--text-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .list-content {
             flex: 1;
+            margin-bottom: 10px;
+            max-height: 180px; /* 设置最大高度 */
             overflow-y: auto;
-            margin-bottom: 12px;
+            overflow-x: hidden;
         }
 
         .list-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px;
-            margin: 4px 0;
+            padding: 6px;
+            margin: 2px 0;
             background: #f8f9fa;
             border-radius: 4px;
             transition: 0.2s;
@@ -98,8 +107,8 @@
         }
 
         .item-actions button {
-            margin-left: 6px;
-            padding: 4px 8px;
+            margin-left: 4px;
+            padding: 3px 6px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
@@ -109,25 +118,25 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
-            padding: 12px;
+            padding: 10px;
             background: #f5f7fa;
             border-radius: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
 
         .stat-item {
             text-align: center;
-            padding: 8px;
+            padding: 6px;
             background: white;
             border-radius: 6px;
         }
 
         .log-panel {
-            grid-column: 1 / -1;
+            grid-column: 1 / -1; /* 跨四列 */
             height: 200px;
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 12px;
+            padding: 10px;
         }
 
         .log-item {
@@ -137,13 +146,25 @@
             font-size: 13px;
             border-bottom: 1px solid var(--border-color);
         }
-        
+
+        .log-item-time {
+            flex: 0 0 100px;
+        }
+
+        .log-item-content {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .control-buttons {
             display: flex;
             gap: 10px;
-            margin-top: 10px;
+            margin: 10px;
+            flex-direction: row-reverse;
         }
-        
+
         .start-btn {
             background: #67c23a;
             color: white;
@@ -153,7 +174,7 @@
             cursor: pointer;
             transition: 0.3s;
         }
-        
+
         .stop-btn {
             background: #f56c6c;
             color: white;
@@ -162,6 +183,22 @@
             border: none;
             cursor: pointer;
             transition: 0.3s;
+        }
+
+        .add-btn, .edit-btn, .delete-btn {
+            background: var(--primary-color);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            transition: 0.2s;
+        }
+
+        .edit-btn {
+            background: #409eff;
+        }
+
+        .delete-btn {
+            background: #f56c6c;
         }
     `);
 
@@ -218,7 +255,6 @@
         }
 
         createDialog() {
-            // 原有创建逻辑不变，在统计栏下方添加控制按钮
             this.dialog = document.createElement('div');
             this.dialog.className = 'super-dialog';
             this.dialog.innerHTML = `
@@ -270,9 +306,11 @@
         createListPanel(key, title) {
             return `
                 <div class="list-panel">
-                    <div class="list-title">${title}</div>
+                    <div class="list-title">
+                        <span>${title}</span>
+                        <button class="add-btn" data-key="${key}">+ 添加</button>
+                    </div>
                     <div class="list-content" id="${key}-list"></div>
-                    <button class="add-btn" data-key="${key}">+ 添加</button>
                 </div>
             `;
         }
@@ -386,19 +424,23 @@
 
         // 列表操作
         handleAddItem(key) {
-            const newItem = prompt(`请输入新的${this.getChineseName(key)}:`);
+            const chineseName = this.getChineseName(key);
+            const newItem = prompt(`请输入新的${chineseName}:`, "").trim();
             if (newItem) {
                 const config = ConfigManager.getConfig();
                 config[key].push(newItem);
                 ConfigManager.updateConfig(key, config[key]);
                 this.renderList(key);
+            } else {
+                alert(`${chineseName}不能为空`);
             }
         }
 
         handleEditItem(item) {
             const key = item.parentElement.id.replace('-list', '');
             const index = [...item.parentElement.children].indexOf(item);
-            const newValue = prompt('修改内容:', item.querySelector('.item-text').textContent);
+            const currentValue = item.querySelector('.item-text').textContent;
+            const newValue = prompt('修改内容:', currentValue).trim();
             if (newValue) {
                 const config = ConfigManager.getConfig();
                 config[key][index] = newValue;
@@ -442,11 +484,11 @@
 
         renderLogs() {
             const logList = this.dialog.querySelector('#log-list');
-            const logs = GM_getValue('post_logs', []);
+            const logs = GM_getValue('post_logs', []).sort((a, b) => b.time - a.time);
             logList.innerHTML = logs.map(log => `
                 <div class="log-item">
-                    <span>${new Date(log.time).toLocaleTimeString()}</span>
-                    <span style="color:${log.success ? 'green' : 'red'}">${log.content.substring(0, 30)}</span>
+                    <span class="log-item-time">${new Date(log.time).toLocaleTimeString()}</span>
+                    <span class="log-item-content" style="color:${log.success ? 'green' : 'red'}">${log.content}</span>
                 </div>
             `).join('');
         }
@@ -563,3 +605,4 @@
         new SuperDialog();
     }, 3000);
 })();
+   
