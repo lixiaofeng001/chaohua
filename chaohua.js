@@ -230,7 +230,11 @@
                 "#虞书欣姜暮#",
                 "#虞书欣双轨#",
                 "#ubras品牌代言人虞书欣#",
-                "#真果粒品牌代言人虞书欣#"
+                "#真果粒品牌代言人虞书欣#",
+                "#虞书欣凌妙妙#",
+                "#虞书欣永夜星河#",
+                "#虞书欣#",
+                "#姜暮#"
             ],
             separators: ["ysx", "✨"],
             bodies: [
@@ -239,7 +243,29 @@
                 "谢谢你的出现 让我黯淡无光的世界有了一丝光亮@虞书欣Esther ​​​​",
                 "烟花绽放的声音 是我无声的告白@虞书欣Esther ​​​​",
                 "盛不盛开，花都是花，那片海的浪不会停，我对你的爱也是@虞书欣Esther ​​​​",
-                "“你是乱花欲渐中唯一用青睐燃烧的星火燎原 𝙔𝙤𝙪 𝙖𝙧𝙚 𝙩𝙚 𝙤𝙣𝙡𝙮 𝙨𝙥𝙖𝙧𝙠 𝙩𝙖𝙩 𝙗𝙪𝙧𝙣𝙨 𝙬𝙞𝙩𝙝 𝙡𝙤𝙫𝙚 𝙞𝙣 𝙩𝙝𝙚 𝙘𝙝𝙖𝙤𝙨.”@虞书欣Esther"
+                "“你是乱花欲渐中唯一用青睐燃烧的星火燎原 𝙔𝙤𝙪 𝙖𝙧𝙚 𝙩𝙚 𝙤𝙣𝙡𝙮 𝙨𝙥𝙖𝙧𝙠 𝙩𝙖𝙩 𝙗𝙪𝙧𝙣𝙨 𝙬𝙞𝙩𝙝 𝙡𝙤𝙫𝙚 𝙞𝙣 𝙩𝙝𝙚 𝙘𝙝𝙖𝙤𝙨.”@虞书欣Esther",
+                "我觉得我的人生就像一场戏，每天都在上演不同的剧情@虞书欣Esther ​​​",
+                "不管遇到什么困难，我都会笑着面对@虞书欣Esther ​​​",
+                "我相信，只要努力，就一定能实现自己的梦想@虞书欣Esther ​​​",
+                "每个人都有自己的闪光点，只是需要时间去发现@虞书欣Esther ​​​",
+                "生活就像一面镜子，你对它笑，它也会对你笑@虞书欣Esther ​​​",
+                "不要害怕失败，失败是成功的垫脚石@虞书欣Esther ​​​",
+                "我相信，只要心中有爱，就能战胜一切困难@虞书欣Esther ​​​",
+                "每个人都有自己的节奏，不要和别人比较@虞书欣Esther ​​​",
+                "生活就像一杯茶，苦中带甜，甜中带苦@虞书欣Esther ​​​",
+                "我相信，只要坚持，就一定能看到希望@虞书欣Esther ​​​",
+                "每个人都有自己的故事，只是需要时间去讲述@虞书欣Esther ​​​",
+                "生活就像一场旅行，不在乎目的地，只在乎沿途的风景@虞书欣Esther ​​​",
+                "不要害怕孤独，孤独是成长的必经之路@虞书欣Esther ​​​",
+                "我相信，只要心中有光，就能照亮前行的路@虞书欣Esther ​​​",
+                "每个人都有自己的梦想，只是需要时间去实现@虞书欣Esther ​​​",
+                "生活就像一本书，每一页都写满了故事@虞书欣Esther ​​​",
+                "不要害怕挑战，挑战是成长的动力@虞书欣Esther ​​​",
+                "我相信，只要心中有梦，就能飞得更高@虞书欣Esther ​​​",
+                "每个人都有自己的路，只是需要时间去走@虞书欣Esther ​​​",
+                "生活就像一首歌，有高潮也有低谷@虞书欣Esther ​​​",
+                "不要害怕失败，失败是成功的开始@虞书欣Esther ​​​",
+                "我相信，只要心中有爱，就能战胜一切@虞书欣Esther ​​​"
             ],
             links: [
                 "https://video.weibo.com/show?fid=1034:5024618210066442",
@@ -310,6 +336,7 @@
                 <div class="control-buttons">
                     <button class="start-btn" id="toggleBtn">${ConfigManager.getConfig().isRunning ? '停止任务' : '启动任务'}</button>
                     <button class="clear-log-btn">清除日志</button>
+                    <button class="clear-log-btn">清除所有数据</button>
                 </div>
                 <div class="dialog-body">
                     ${this.createListPanel('hashtags', '话题标签')}
@@ -330,7 +357,7 @@
         createStats() {
             const logs = GM_getValue('post_logs', []);
             // 过滤掉包含特定关键词的日志条目
-            const filteredLogs = logs.filter(log => !log.content.includes('定时任务已启动') && !log.content.includes('定时任务已停止'));
+            const filteredLogs = logs.filter(log => !log.content.includes('定时任务已启动') && !log.content.includes('定时任务已停止') && !log.content.includes('所有数据已清除'));
             const successCount = filteredLogs.filter(l => l.success).length;
             const statsHTML = `
                 <div class="stat-item">
@@ -391,9 +418,9 @@
             header.addEventListener('mousedown', this.startDrag.bind(this));
             document.addEventListener('mousemove', this.handleDrag.bind(this));
             document.addEventListener('mouseup', this.stopDrag.bind(this));
-    
+
             // 按钮事件
-            this.dialog.addEventListener('click', (e) => {
+            this.dialog.addEventListener('click', debounce((e) => {
                 if (e.target.id === 'toggleBtn') {
                     this.handleToggleTask();
                 }
@@ -409,7 +436,10 @@
                 if (e.target.classList.contains('clear-log-btn')) {
                     this.clearLogs();
                 }
-            });
+                if (e.target.classList.contains('clear-data-btn')) {
+                    this.clearAllData();
+                }
+            }, 300));
         }
     
         handleToggleTask() {
@@ -420,6 +450,8 @@
                 const input = prompt('请输入定时任务间隔时间（分钟）:', config.interval);
                 const minutes = parseInt(input);
                 if (!isNaN(minutes) && minutes > 0) {
+                    // 立即触发一次发微博
+                    WeiboPublisher.post();
                     this.startPosting(minutes);
                 } else {
                     alert('请输入有效的数字');
@@ -522,16 +554,23 @@
     
         // 渲染逻辑
         renderAllLists() {
+            const config = ConfigManager.getConfig();
             ['hashtags', 'separators', 'bodies', 'links'].forEach(key => {
-                this.renderList(key);
+                this.renderList(key, config[key]);
             });
             this.renderLogs();
         }
     
-        renderList(key) {
+        renderList(key, items) {
             const list = this.dialog.querySelector(`#${key}-list`);
-            const items = ConfigManager.getConfig()[key];
-            list.innerHTML = items.map((item, index) => `
+            // 如果数据为空，使用默认数据
+            if (!items || items.length === 0) {
+                items = ConfigManager.DEFAULT_CONFIG[key];
+                ConfigManager.updateConfig(key, items);
+            }
+            // 去重处理
+            const uniqueItems = [...new Set(items)];
+            list.innerHTML = uniqueItems.map((item, index) => `
                 <div class="list-item">
                     <span class="item-text">${item}</span>
                     <div class="item-actions">
@@ -545,7 +584,9 @@
         renderLogs() {
             const logList = this.dialog.querySelector('#log-list');
             const logs = GM_getValue('post_logs', []).sort((a, b) => b.time - a.time);
-            logList.innerHTML = logs.map(log => `
+            // 去重处理
+            const uniqueLogs = [...new Map(logs.map(log => [log.content, log])).values()];
+            logList.innerHTML = uniqueLogs.map(log => `
                 <div class="log-item">
                     <span class="log-item-time">${new Date(log.time).toLocaleTimeString()}</span>
                     <span class="log-item-content" style="color:${log.success ? 'green' : 'red'}">${log.content}</span>
@@ -568,33 +609,69 @@
             this.renderLogs(); // 重新渲染日志
             this.createStats(); // 重新渲染统计信息
         }
+
+        clearAllData() {
+            if (confirm('确定要清除所有数据吗？此操作不可恢复！')) {
+                const config = ConfigManager.getConfig();
+                config.hashtags = [];
+                config.separators = [];
+                config.bodies = [];
+                config.links = [];
+                ConfigManager.updateConfig('hashtags', config.hashtags);
+                ConfigManager.updateConfig('separators', config.separators);
+                ConfigManager.updateConfig('bodies', config.bodies);
+                ConfigManager.updateConfig('links', config.links);
+                this.renderAllLists();
+                this.addLog('所有数据已清除');
+            }
+        }
     }
     class ContentGenerator {
-        static recentChoices = [];
+        static get usedCombinations() {
+            return new Set(GM_getValue('used_combinations', []));
+        }
+
+        static set usedCombinations(value) {
+            GM_setValue('used_combinations', Array.from(value));
+        }
 
         static generate() {
             const config = ConfigManager.getConfig();
             let content;
-            do {
-                content = this.combineContent(
-                    this.pickRandom(config.hashtags, 2),
-                    this.pickRandom(config.separators),
-                    this.pickRandom(config.bodies),
-                    this.pickRandom(config.links)
-                );
-            } while (this.recentChoices.includes(content));
+            let combination;
 
-            // 更新最近选择的内容队列
-            this.recentChoices.push(content);
-            if (this.recentChoices.length > 3) {
-                this.recentChoices.shift();
+            do {
+                const link = this.pickRandom(config.links, 1); // 优先确保视频链接每次都不同
+                const hashtags = this.pickRandom(config.hashtags, 2); // 选择两个 hashtags
+                const separator = this.pickRandom(config.separators, 1);
+                const body = this.pickRandom(config.bodies, 1);
+                combination = `${hashtags.join('-')}-${separator}-${body}-${link}`;
+
+                content = this.combineContent(
+                    hashtags, // 使用两个 hashtags
+                    separator,
+                    body,
+                    link
+                );
+            } while (this.usedCombinations.has(combination));
+
+            // 更新已使用的组合集合
+            this.usedCombinations.add(combination);
+            if (this.usedCombinations.size >= config.hashtags.length * config.separators.length * config.bodies.length * config.links.length) {
+                this.usedCombinations.clear();
             }
 
             return content;
         }
 
         static pickRandom(array, count = 1) {
-            return [...array].sort(() => Math.random() - 0.5).slice(0, count);
+            // 使用 Fisher-Yates 洗牌算法
+            const shuffled = array.slice();
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled.slice(0, count);
         }
 
         static combineContent(tags, separator, body, link) {
@@ -684,6 +761,16 @@
                 console.error('SuperDialog instance not found');
             }
         }
+    }
+
+    // 添加防抖函数
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
     }
 
     // 初始化逻辑简化
