@@ -24,14 +24,7 @@
         maxAttempts: 8,
         poolSize: 100,
         countdownColor: 'linear-gradient(135deg, #4CAF50 0%, #FFC107 50%, #F44336 100%)',
-        apiEndpoint: 'https://weibo.com/ajax/statuses/normal_repost',
-        apiCheckInterval: 300,
-        healthCheckTimeout: 10000,
-        validStatus: [200, 201],
-        successIndicator: {
-            code: 100000,
-            field: 'data.result'
-        }
+        maxCycles: GM_getValue('maxCycles', 2) // 默认2次循环
     };
 
     // ================= 全局状态管理 =================
@@ -40,6 +33,7 @@
     let countdownInterval = null;
     let usedNumbers = GM_getValue('usedNumbers', []);
     let availableNumbers = GM_getValue('availableNumbers', initializeNumberPool());
+    let cycleCount = GM_getValue('cycleCount', 0);
 
     // ================= 核心业务模块 =================
     function initializeNumberPool() {
@@ -50,6 +44,11 @@
 
     async function performRepostFlow() {
         try {
+
+            if (cycleCount >= CONFIG.maxCycles) {
+                emergencyStop("已完成设定循环次数");
+                return;
+            }
             const repostBtn = await retryableFind('.toolbar_retweet_1L_U5');
             await humanizedClick(repostBtn);
 
@@ -136,7 +135,9 @@
                             font-size: 14px;
                             color: #666;
                             margin-bottom: 4px;
-                        ">下次刷新剩余</div>
+                        ">
+                            下次刷新剩余
+                        </div>
                         <div class="countdown-text" style="
                             font-family: 'Segoe UI', monospace;
                             font-size: 18px;
@@ -152,6 +153,7 @@
             this.element = container;
             this.progress = container.querySelector('.countdown-progress');
             this.text = container.querySelector('.countdown-text');
+            this.cycleDisplay = container.querySelector('.cycle-display');
 
             container.addEventListener('click', () => {
                 if (confirm('立即停止自动循环？')) {
@@ -183,6 +185,13 @@
                 this.text.textContent = `${(remaining / 1000).toFixed(1)}s`;
                 const hue = 120 * progress;
                 this.text.style.color = `hsl(${hue}, 70%, 40%)`;
+            }
+        },
+
+        updateCycleDisplay() {
+            if (this.cycleDisplay) {
+                this.cycleDisplay.textContent =
+                    `${cycleCount}/${CONFIG.maxCycles}次循环`;
             }
         }
     };
@@ -306,13 +315,23 @@
 
     // ================= 系统初始化 =================
     (function init() {
+        checkCycleLimit();
         CountdownManager.init();
         const btn = createControlButton();
         GM_addValueChangeListener('autoRepostStatus', handleStatusChange);
         GM_registerMenuCommand('重置数字池', resetNumberPool);
         GM_registerMenuCommand('清除所有状态', resetAllState);
+        GM_registerMenuCommand('设置循环次数', setMaxCycles);
         if (isRunning) initializeOperation();
     })();
+
+    function checkCycleLimit() {
+        if (cycleCount >= CONFIG.maxCycles) {
+            emergencyStop("已达到最大循环次数");
+            return false;
+        }
+        return true;
+    }
 
     function handleStatusChange(key, oldVal, newVal) {
         isRunning = newVal;
@@ -321,6 +340,7 @@
     }
 
     function initializeOperation() {
+        if (!checkCycleLimit()) return;
         clearTimeout(operationTimer);
         operationTimer = setTimeout(() => {
             performRepostFlow().then(schedulePageRefresh).catch(console.error);
@@ -328,6 +348,9 @@
     }
 
     function schedulePageRefresh() {
+        cycleCount++;
+        GM_setValue('cycleCount', cycleCount);
+        CountdownManager.updateCycleDisplay();
         let remaining = CONFIG.refreshDelay;
         CountdownManager.show();
         GM_setValue('countdownRemaining', remaining);
@@ -342,6 +365,12 @@
                 clearInterval(countdownInterval);
                 CountdownManager.hide();
                 GM_setValue('countdownRemaining', 0);
+                if (cycleCount >= CONFIG.maxCycles) {
+                    GM_setValue('cycleCount', 0);
+                    const btn = createControlButton();
+                    btn.click();
+                    alert(`已完成 ${CONFIG.maxCycles} 次循环`);
+                }
                 window.location.reload();
                 return;
             }
@@ -351,6 +380,11 @@
         }, 100);
     }
 
+    function setMaxCycles() {
+        const value = parseInt(CONFIG.maxCycles);
+        GM_setValue('maxCycles', value);
+        CountdownManager.updateCycleDisplay();
+    }
     function resetNumberPool() {
         usedNumbers = [];
         availableNumbers = initializeNumberPool();
@@ -364,6 +398,8 @@
         GM_setValue('usedNumbers', []);
         GM_setValue('availableNumbers', initializeNumberPool());
         GM_setValue('countdownRemaining', 0);
+        GM_setValue('cycleCount', 0);
+        cycleCount = 0;
         window.location.reload();
     }
 
