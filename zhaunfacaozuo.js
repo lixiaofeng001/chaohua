@@ -1,20 +1,21 @@
 // ==UserScript==
 // @name         微博智能转发工具
 // @namespace    http://tampermonkey.net/
-// @version      3.2
-// @description  带接口监控的微博自动化工具，异常立即停止
+// @version      4.3
+// @description  微博自动化工具
 // @author       路过的香菜丶
 // @match        *://weibo.com/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // 增强配置系统
+    // ================= 增强配置系统 =================
     const CONFIG = {
         initDelay: 10 * 1000,
         refreshDelay: 15 * 1000,
@@ -23,18 +24,59 @@
         maxAttempts: 8,
         poolSize: 100,
         countdownColor: 'linear-gradient(135deg, #4CAF50 0%, #FFC107 50%, #F44336 100%)',
-        apiEndpoint: 'https://weibo.com/ajax/statuses/normal_repost'
+        apiEndpoint: 'https://weibo.com/ajax/statuses/normal_repost',
+        apiCheckInterval: 300,
+        healthCheckTimeout: 10000,
+        validStatus: [200, 201],
+        successIndicator: {
+            code: 100000,
+            field: 'data.result'
+        }
     };
 
-    // 全局状态管理
+    // ================= 全局状态管理 =================
     let isRunning = GM_getValue('autoRepostStatus', false);
     let operationTimer = null;
     let countdownInterval = null;
     let usedNumbers = GM_getValue('usedNumbers', []);
     let availableNumbers = GM_getValue('availableNumbers', initializeNumberPool());
-    let originalXHROpen = null;
 
-    // 倒计时管理器
+    // ================= 核心业务模块 =================
+    function initializeNumberPool() {
+        const pool = Array.from({length: CONFIG.poolSize}, (_, i) => i + 1);
+        shuffleArray(pool);
+        return pool;
+    }
+
+    async function performRepostFlow() {
+        try {
+            const repostBtn = await retryableFind('.toolbar_retweet_1L_U5');
+            await humanizedClick(repostBtn);
+
+            const textarea = await retryableFind('textarea.Form_input_3JT2Q');
+            const newContent = `${generateUniqueNumber()} ${textarea.value.trim()}`;
+            await humanizedType(textarea, newContent);
+
+            const confirmBtn = await retryableFind('button.Composer_btn_2XFOD:not([disabled])');
+            await humanizedClick(confirmBtn);
+
+            GM_setValue('usedNumbers', usedNumbers);
+            GM_setValue('availableNumbers', availableNumbers);
+        } catch (error) {
+            throwError(error.message);
+        }
+    }
+
+    // ================= 异常管理系统 =================
+    function throwError(reason) {
+        emergencyStop(`接口异常: ${reason}`);
+        console.error({
+            timestamp: new Date().toISOString(),
+            reason
+        });
+    }
+
+    // ================= UI管理系统 =================
     const CountdownManager = {
         element: null,
         progress: null,
@@ -43,9 +85,7 @@
 
         init() {
             this.createCountdownElement();
-            if (GM_getValue('countdownRemaining', 0) > 0) {
-                this.show();
-            }
+            if (GM_getValue('countdownRemaining', 0) > 0) this.show();
         },
 
         createCountdownElement() {
@@ -147,58 +187,6 @@
         }
     };
 
-    // 核心业务逻辑
-    function initializeNumberPool() {
-        const pool = Array.from({length: CONFIG.poolSize}, (_, i) => i + 1);
-        shuffleArray(pool);
-        return pool;
-    }
-
-    async function performRepostFlow() {
-        try {
-            initRequestMonitor();
-
-            const repostBtn = await retryableFind('.toolbar_retweet_1L_U5');
-            await humanizedClick(repostBtn);
-
-            const textarea = await retryableFind('textarea.Form_input_3JT2Q');
-            const originalContent = textarea.value.trim();
-            const newContent = `${generateUniqueNumber()} ${originalContent}`;
-            await humanizedType(textarea, newContent);
-
-            const confirmBtn = await retryableFind('button.Composer_btn_2XFOD:not([disabled])');
-            await humanizedClick(confirmBtn);
-
-            GM_setValue('usedNumbers', usedNumbers);
-            GM_setValue('availableNumbers', availableNumbers);
-        } catch (error) {
-            emergencyStop('操作流程异常');
-        }
-    }
-
-    // 网络请求监控
-    function initRequestMonitor() {
-        originalXHROpen = XMLHttpRequest.prototype.open;
-
-        XMLHttpRequest.prototype.open = function(method, url) {
-            if (url.includes(CONFIG.apiEndpoint)) {
-                this.addEventListener('load', function() {
-                    if (this.status !== 200) {
-                        emergencyStop(`接口错误 (${this.status})`);
-                    }
-                });
-            }
-            originalXHROpen.apply(this, arguments);
-        };
-    }
-
-    // 紧急停止机制
-    function emergencyStop(reason) {
-        stopOperation();
-        showErrorAlert(`已停止: ${reason}`);
-    }
-
-    // 操作控制逻辑
     function createControlButton() {
         const btn = document.createElement('button');
         Object.assign(btn.style, {
@@ -253,71 +241,14 @@
         return btn;
     }
 
-    function updateButtonState(btn) {
-        btn.style.background = isRunning ? '#dc3545' : '#28a745';
-        btn.querySelector('.status-led').style.background = isRunning ? '#4CAF50' : '#f44336';
-        btn.querySelector('.status-led').style.boxShadow = `0 0 8px ${isRunning ? '#4CAF50' : '#f44336'}`;
-        btn.querySelector('span').innerHTML = isRunning ? '停止运行' : '启动自动';
-    }
-
-    function stopOperation() {
-        clearTimeout(operationTimer);
-        clearInterval(countdownInterval);
-        CountdownManager.hide();
-        GM_setValue('countdownRemaining', 0);
-        GM_setValue('autoRepostStatus', false);
-        isRunning = false;
-        if(originalXHROpen) {
-            XMLHttpRequest.prototype.open = originalXHROpen;
-        }
-    }
-
-    // 错误提示
-    function showErrorAlert(message) {
-        const alertBox = document.createElement('div');
-        Object.assign(alertBox.style, {
-            position: 'fixed',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: '#ff4444',
-            color: 'white',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.2)',
-            zIndex: '10000',
-            animation: 'alertSlide 0.5s ease-out'
-        });
-        alertBox.textContent = message;
-        document.body.appendChild(alertBox);
-        setTimeout(() => alertBox.remove(), 5000);
-
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes alertSlide {
-                0% { transform: translate(-50%, -100%); opacity: 0; }
-                90% { transform: translate(-50%, 10%); opacity: 1; }
-                100% { transform: translate(-50%, 0); }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    // 工具函数
-    function generateUniqueNumber() {
-        if (availableNumbers.length === 0) {
-            availableNumbers = [...usedNumbers];
-            usedNumbers = [];
-            shuffleArray(availableNumbers);
-        }
-        return availableNumbers.pop();
-    }
+    // ================= 工具函数库 =================
 
     function shuffleArray(array) {
         for (let i = array.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [array[i], array[j]] = [array[j], array[i]];
         }
+        return array;
     }
 
     async function retryableFind(selector) {
@@ -364,17 +295,30 @@
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    // 初始化入口
+    function generateUniqueNumber() {
+        if (availableNumbers.length < CONFIG.poolSize * 0.2) {
+            availableNumbers = [...availableNumbers, ...shuffleArray([...usedNumbers])];
+            usedNumbers = [];
+            shuffleArray(availableNumbers);
+        }
+        return availableNumbers.pop();
+    }
+
+    // ================= 系统初始化 =================
     (function init() {
         CountdownManager.init();
         const btn = createControlButton();
-        GM_addValueChangeListener('autoRepostStatus', (key, oldVal, newVal) => {
-            isRunning = newVal;
-            updateButtonState(btn);
-            if (newVal) initializeOperation();
-        });
+        GM_addValueChangeListener('autoRepostStatus', handleStatusChange);
+        GM_registerMenuCommand('重置数字池', resetNumberPool);
+        GM_registerMenuCommand('清除所有状态', resetAllState);
         if (isRunning) initializeOperation();
     })();
+
+    function handleStatusChange(key, oldVal, newVal) {
+        isRunning = newVal;
+        updateButtonState(document.querySelector('#control-btn'));
+        if (newVal) initializeOperation();
+    }
 
     function initializeOperation() {
         clearTimeout(operationTimer);
@@ -407,20 +351,98 @@
         }, 100);
     }
 
-    // 管理命令
-    GM_registerMenuCommand('重置数字池', () => {
+    function resetNumberPool() {
         usedNumbers = [];
         availableNumbers = initializeNumberPool();
         GM_setValue('usedNumbers', usedNumbers);
         GM_setValue('availableNumbers', availableNumbers);
         alert('数字池已重置');
-    });
+    }
 
-    GM_registerMenuCommand('清除所有状态', () => {
+    function resetAllState() {
         GM_setValue('autoRepostStatus', false);
         GM_setValue('usedNumbers', []);
         GM_setValue('availableNumbers', initializeNumberPool());
         GM_setValue('countdownRemaining', 0);
         window.location.reload();
+    }
+
+    function emergencyStop(reason) {
+        stopOperation();
+        showErrorAlert(`已停止: ${reason}`);
+        console.error(`[Emergency Stop] ${reason}`);
+    }
+
+    function stopOperation() {
+        clearTimeout(operationTimer);
+        clearInterval(countdownInterval);
+        CountdownManager.hide();
+        GM_setValue('countdownRemaining', 0);
+        GM_setValue('autoRepostStatus', false);
+        isRunning = false;
+    }
+
+    function updateButtonState(btn) {
+        if (!btn) {
+            console.error('Button element is null');
+            return;
+        }
+        btn.style.background = isRunning ? '#dc3545' : '#28a745';
+        const statusLed = btn.querySelector('.status-led');
+        if (statusLed) {
+            statusLed.style.background = isRunning ? '#4CAF50' : '#f44336';
+            statusLed.style.boxShadow = `0 0 8px ${isRunning ? '#4CAF50' : '#f44336'}`;
+        }
+        const span = btn.querySelector('span');
+        if (span) {
+            span.innerHTML = isRunning ? '停止运行' : '启动自动';
+        }
+    }
+
+    const injectCode = () => {
+        // 拦截 XMLHttpRequest
+        const originalXhrOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url) {
+            if (url.includes('/ajax/statuses/normal_repost')) {
+                this.addEventListener('load', () => {
+                    console.log('捕获响应:', this.response);
+                    // 将数据传递到油猴环境（需自定义事件处理）
+                    window.dispatchEvent(new CustomEvent('WeiboAPIResponse', {
+                        detail: this.response
+                    }));
+                });
+            }
+            originalXhrOpen.apply(this, arguments);
+        };
+
+        // 拦截 Fetch
+        const originalFetch = window.fetch;
+        window.fetch = async (...args) => {
+            const [input] = args;
+            if (typeof input === 'string' && input.includes('/ajax/statuses/normal_repost')) {
+                const response = await originalFetch(...args);
+                response.clone().json().then(data => {
+                    console.log('Fetch响应:', data);
+                    window.dispatchEvent(new CustomEvent('WeiboAPIResponse', { detail: data }));
+                });
+                return response;
+            }
+            return originalFetch(...args);
+        };
+    };
+
+    // 注入代码到页面上下文
+    const script = document.createElement('script');
+    script.textContent = `(${injectCode})();`;
+    document.documentElement.appendChild(script);
+    script.remove();
+
+    // 监听自定义事件（在油猴环境中处理数据）
+    window.addEventListener('WeiboAPIResponse', (e) => {
+        console.log('油猴捕获数据:', e.detail);
+        if (e.detail.includes('频繁') || e.detail.includes('验证码')) {
+            const btn = createControlButton();
+            btn.click();
+        }
     });
 })();
