@@ -1,352 +1,285 @@
 // ==UserScript==
-// @name         微博转发
-// @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  转发工具
-// @author       YourName
-// @match        https://weibo.com/n/%E8%99%9E%E4%B9%A6%E6%AC%A3Esther
-// @grant        GM_xmlhttpRequest
+// @name         微博智能转发工具
+// @version      5.0
+// @description  微博智能转发工具
+// @author       路过的香菜丶
+// @match        *://weibo.com/*
 // @grant        GM_setValue
 // @grant        GM_getValue
-// @grant        GM_log
-// @connect      weibo.com
+// @grant        GM_addValueChangeListener
+// @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
+// @run-at       document-start
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    class WeiboReposter {
-        // 添加 bodies 数组的定义
-        static bodies = [
-            "比起天赋，我更相信反复练习的力量@虞书欣Esther ​​​",
-            "有我们再，你不再是一个人了@虞书欣Esther ​​​​",
-            "谢谢你的出现 让我黯淡无光的世界有了一丝光亮@虞书欣Esther ​​​​",
-            "烟花绽放的声音 是我无声的告白@虞书欣Esther ​​​​",
-            "盛不盛开，花都是花，那片海的浪不会停，我对你的爱也是@虞书欣Esther ​​​​",
-            "“你是乱花欲渐中唯一用青睐燃烧的星火燎原 𝙔𝙤𝙪 𝙖𝙧𝙚 𝙩𝙚 𝙤𝙣𝙡𝙮 𝙨𝙥𝙖𝙧𝙠 𝙩𝙖𝙩 𝙗𝙪𝙧𝙣𝙨 𝙬𝙞𝙩𝙝 𝙡𝙤𝙫𝙚 𝙞𝙣 𝙩𝙝𝙚 𝙘𝙝𝙖𝙤𝙨.”@虞书欣Esther",
-            "人生就像一场戏，因为有缘才相聚@虞书欣Esther ​​​",
-            "不管未来有多遥远，成长的路上有你有我@虞书欣Esther ​​​",
-            "生活不是等待风暴过去，而是学会在雨中翩翩起舞@虞书欣Esther ​​​",
-            "每一个不曾起舞的日子，都是对生命的辜负@虞书欣Esther ​​​",
-            "梦想还是要有的，万一实现了呢@虞书欣Esther ​​​",
-            "不要因为走得太远，忘了我们为什么出发@虞书欣Esther ​​​",
-            "生活就像海洋，只有意志坚强的人才能到达彼岸@虞书欣Esther ​​​",
-            "成功的秘诀在于坚持自己的目标和信念@虞书欣Esther ​​​",
-            "人生没有彩排，每一天都是现场直播@虞书欣Esther ​​​",
-            "不要等待机会，而要创造机会@虞书欣Esther ​​​",
-            "人生最大的敌人是自己@虞书欣Esther ​​​",
-            "只有不断找寻机会的人才会及时把握机会@虞书欣Esther ​​​",
-            "人生没有失败，只有暂时的不成功@虞书欣Esther ​​​",
-            "每一个成功者都有一个开始。勇于开始，才能找到成功的路@虞书欣Esther ​​​",
-            "我觉得我的人生就像一场戏，每天都在上演不同的剧情@虞书欣Esther ​​​",
-            "不管遇到什么困难，我都会笑着面对@虞书欣Esther ​​​",
-            "我相信，只要努力，就一定能实现自己的梦想@虞书欣Esther ​​​",
-            "每个人都有自己的闪光点，只是需要时间去发现@虞书欣Esther ​​​",
-            "生活就像一面镜子，你对它笑，它也会对你笑@虞书欣Esther ​​​",
-            "不要害怕失败，失败是成功的垫脚石@虞书欣Esther ​​​",
-            "我相信，只要心中有爱，就能战胜一切困难@虞书欣Esther ​​​",
-            "每个人都有自己的节奏，不要和别人比较@虞书欣Esther ​​​",
-            "生活就像一杯茶，苦中带甜，甜中带苦@虞书欣Esther ​​​",
-            "我相信，只要坚持，就一定能看到希望@虞书欣Esther ​​​",
-            "每个人都有自己的故事，只是需要时间去讲述@虞书欣Esther ​​​",
-            "生活就像一场旅行，不在乎目的地，只在乎沿途的风景@虞书欣Esther ​​​",
-            "不要害怕孤独，孤独是成长的必经之路@虞书欣Esther ​​​",
-            "我相信，只要心中有光，就能照亮前行的路@虞书欣Esther ​​​",
-            "每个人都有自己的梦想，只是需要时间去实现@虞书欣Esther ​​​",
-            "生活就像一本书，每一页都写满了故事@虞书欣Esther ​​​",
-            "不要害怕挑战，挑战是成长的动力@虞书欣Esther ​​​",
-            "我相信，只要心中有梦，就能飞得更高@虞书欣Esther ​​​",
-            "每个人都有自己的路，只是需要时间去走@虞书欣Esther ​​​",
-            "生活就像一首歌，有高潮也有低谷@虞书欣Esther ​​​",
-            "不要害怕失败，失败是成功的开始@虞书欣Esther ​​​",
-            "我相信，只要心中有爱，就能战胜一切@虞书欣Esther ​​​"
-        ];
+    // ================= 配置中心 =================
+    const CONFIG = {
+        // 最大循环次数，表示工具运行的最大循环次数
+        maxCycles: 20,
+        // 当前循环次数，记录当前已执行的循环次数
+        currentCycle: GM_getValue('currentCycle', 0),
+        // 刷新延迟时间（毫秒），控制每次操作之间的延迟时间
+        refreshDelay: 10000,
+        // 请求延迟范围（毫秒），用于随机生成请求延迟时间
+        requestRange: [800, 2500],
+        // 数字池大小，表示可用数字的数量
+        numberPoolSize: 100
+    };
+    GM_setValue('maxCycles', CONFIG.maxCycles);
 
-        static repost(originalWeiboId, comment = '') {
-            const params = new URLSearchParams({
-                id: originalWeiboId,
-                comment: comment,
-                pic_id: '',
-                is_repost: 0,
-                comment_ori: 0,
-                is_comment: 1,
-                visible: 0,
-                share_id: '',
-                _t: Date.now(),
-                location: 'page_100808_super_index'
-            });
+    // ================= 状态管理 =================
+    // 是否正在运行，记录工具的运行状态
+    let isRunning = GM_getValue('isRunning', false);
+    // 定时器，用于控制循环操作
+    let timer = null;
+    // 可用数字池，存储当前可用的数字
+    let availableNumbers = GM_getValue('availableNumbers', initNumberPool());
+    // 已使用数字池，存储已使用的数字
+    let usedNumbers = GM_getValue('usedNumbers', []);
 
-            GM_xmlhttpRequest({
-                method: 'POST',
-                url: 'https://weibo.com/ajax/statuses/normal_repost',
-                headers: this.getHeaders(),
-                data: params.toString(),
-                onload: (res) => this.handleResponse(res, originalWeiboId, comment)
-            });
+    // ================= 核心功能 =================
+    function initNumberPool() {
+        const pool = Array.from({length: CONFIG.numberPoolSize}, (_, i) => i + 1);
+        return shuffleArray(pool);
+    }
+
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    async function performRepost() {
+        if (CONFIG.currentCycle >= CONFIG.maxCycles) {
+            stopOperation();
+            showNotification(`✅ 已完成 ${CONFIG.maxCycles} 次循环`);
+            return;
         }
 
-        static getHeaders() {
-            return {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Cookie': document.cookie,
-                'Referer': window.location.href,
-                'Origin': 'https://weibo.com'
-            };
-        }
+        try {
+            const repostBtn = await findElement('.toolbar_retweet_1L_U5', 10);
+            await humanClick(repostBtn);
 
-        static handleResponse(res, weiboId, comment) {
-            let result;
-            try {
-                result = JSON.parse(res.responseText);
-            } catch (e) {
-                console.error('解析响应失败:', e);
-                result = { ok: 0 };
-            }
+            const textarea = await findElement('textarea.Form_input_3JT2Q', 5);
+            const newContent = `${generateNumber()} ${textarea.value.trim()}`;
+            await humanType(textarea, newContent);
 
-            const logs = GM_getValue('repost_logs', []);
-            logs.push({
-                time: new Date().toISOString(),
-                weiboId: weiboId,
-                comment: comment,
-                success: result.ok === 1,
-                response: result
-            });
-            GM_setValue('repost_logs', logs.slice(-100));
+            const confirmBtn = await findElement('button.Composer_btn_2XFOD:not([disabled])', 5);
+            await humanClick(confirmBtn);
 
-            // 保存日志数据到 GM_setValue
-            GM_setValue('repost_logs', logs.slice(-100));
-
-            this.updateUI(result);
-        }
-
-        static updateUI(response) {
-            if (response.ok === 1) {
-                const stats = GM_getValue('repost_stats', { success: 0, fail: 0 });
-                stats.success++;
-                GM_setValue('repost_stats', stats);
-                
-                // 显示成功提示
-                const successTip = document.createElement('div');
-                successTip.style = 'position: fixed; top: 20px; right: 20px; padding: 15px; background: #67C23A; color: white; border-radius: 5px; z-index: 9999;';
-                successTip.innerText = `转发成功！新微博ID：${response.data.statuses.id}`;
-                document.body.appendChild(successTip);
-                
-                setTimeout(() => successTip.remove(), 3000);
-            } else {
-                const stats = GM_getValue('repost_stats', { success: 0, fail: 0 });
-                stats.fail++;
-                GM_setValue('repost_stats', stats);
-                
-                // 显示错误提示
-                const errorTip = document.createElement('div');
-                errorTip.style = 'position: fixed; top: 20px; right: 20px; padding: 15px; background: #F56C6C; color: white; border-radius: 5px; z-index: 9999;';
-                errorTip.innerText = `转发失败：${response.msg || '未知错误'}`;
-                document.body.appendChild(errorTip);
-                
-                setTimeout(() => errorTip.remove(), 5000);
-            }
-
-            // 更新统计面板
-            this.updateStatsPanel();
-        }
-
-        static updateStatsPanel() {
-            const statsPanel = document.getElementById('repost-stats-panel');
-            if (statsPanel) {
-                const logs = GM_getValue('repost_logs', []);
-                // 过滤掉包含特定关键词的日志条目
-                const filteredLogs = logs.filter(log => !log.comment.includes('定时任务已启动') && !log.comment.includes('定时任务已停止'));
-                const successCount = filteredLogs.filter(l => l.success).length;
-                const statsHTML = `
-                    <h3>转发统计</h3>
-                    <p>总发送数: ${filteredLogs.length}</p>
-                    <p>成功: ${successCount}</p>
-                    <p>失败: ${filteredLogs.length - successCount}</p>
-                    <p>成功率: ${filteredLogs.length ? (successCount / filteredLogs.length * 100).toFixed(2) : 0}%</p>
-                `;
-                statsPanel.innerHTML = statsHTML;
-            }
-        }
-
-        static clearLogsAndStats() {
-            GM_setValue('repost_logs', []);
-            GM_setValue('repost_stats', { success: 0, fail: 0 });
-            this.updateStatsPanel(); // 更新统计面板
-        }
-
-        static shuffleArray(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
-            }
-        }
-
-        static startAutoRepost(weiboId, interval) {
-            if (this.autoRepostInterval) {
-                clearInterval(this.autoRepostInterval);
-            }
-
-            // 从 GM_getValue 中读取保存的文案索引和打乱后的文案数组
-            this.shuffledBodies = GM_getValue('shuffledBodies', [...this.bodies]);
-            this.currentBodyIndex = GM_getValue('currentBodyIndex', 0);
-
-            // 如果没有保存的文案数组，则重新打乱并重置索引
-            if (this.shuffledBodies.length !== this.bodies.length) {
-                this.shuffledBodies = [...this.bodies];
-                this.shuffleArray(this.shuffledBodies);
-                this.currentBodyIndex = 0;
-            }
-
-            this.autoRepostInterval = setInterval(() => {
-                if (this.currentBodyIndex >= this.shuffledBodies.length) {
-                    // 如果文案用完了，重新打乱并重置索引
-                    this.shuffledBodies = [...this.bodies];
-                    this.shuffleArray(this.shuffledBodies);
-                    this.currentBodyIndex = 0;
-                }
-
-                const randomComment = this.shuffledBodies[this.currentBodyIndex];
-                this.repost(weiboId, randomComment);
-                this.currentBodyIndex++;
-
-                // 保存当前的文案索引和打乱后的文案数组到 GM_setValue
-                GM_setValue('shuffledBodies', this.shuffledBodies);
-                GM_setValue('currentBodyIndex', this.currentBodyIndex);
-            }, interval * 60 * 1000);
-        }
-
-        static stopAutoRepost() {
-            if (this.autoRepostInterval) {
-                clearInterval(this.autoRepostInterval);
-                this.autoRepostInterval = null;
-            }
-        }
-
-        static createControlPanel() {
-            const panel = document.createElement('div');
-            panel.id = 'weibo-repost-panel';
-            panel.style = `
-                position: fixed;
-                top: 100px;
-                left: 50%; /* 修改为水平居中 */
-                transform: translateX(-50%); /* 使元素向左偏移自身宽度的一半 */
-                background: #fff;
-                padding: 20px;
-                box-shadow: 0 2px 12px rgba(0,0,0,0.1);
-                z-index: 9999;
-                width: 400px;
-                border-radius: 4px;
-                border: 1px solid #d9d9d9;
-            `;
-
-            panel.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="margin-bottom: 10px;">微博转发工具</h3>
-                </div>
-                <div>
-                    <input type="text" id="repost-weibo-id" placeholder="原微博ID" style="margin-bottom: 10px; padding: 8px; border: 1px solid #d9d9d9; border-radius: 4px;">
-                    <input type="number" id="repost-interval" placeholder="定时转发间隔（分钟）" style="margin-bottom: 10px; padding: 8px; border: 1px solid #d9d9d9; border-radius: 4px;">
-                    <button id="toggle-repost" style="background: #1890ff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">开始转发</button>
-                    <button id="clear-logs" style="background: #faad14; color: white; padding: 8px 16px; border: none; border-radius: 4px; margin-left: 10px; cursor: pointer;">清除日志</button>
-                </div>
-                <div id="repost-stats-panel" style="margin-top: 15px;"></div>
-            `;
-
-            document.body.appendChild(panel);
-
-            // 添加拖拽相关的属性
-            this.isDragging = false;
-            this.startX = 0;
-            this.startY = 0;
-
-            // 绑定拖拽事件
-            panel.addEventListener('mousedown', this.startDrag.bind(this));
-            document.addEventListener('mousemove', this.handleDrag.bind(this));
-            document.addEventListener('mouseup', this.stopDrag.bind(this));
-
-            document.getElementById('toggle-repost').addEventListener('click', debounce(() => {
-                const weiboId = document.getElementById('repost-weibo-id').value;
-                const interval = document.getElementById('repost-interval').value;
-
-                if (!weiboId) {
-                    alert('请输入微博ID');
-                    return;
-                }
-
-                if (!interval) {
-                    alert('请输入定时转发间隔');
-                    return;
-                }
-
-                const toggleButton = document.getElementById('toggle-repost');
-                if (toggleButton.innerText === '开始转发') {
-                    // 禁用开始转发按钮
-                    toggleButton.disabled = true;
-
-                    // 立即触发一次转发
-                    WeiboReposter.repost(weiboId, WeiboReposter.bodies[Math.floor(Math.random() * WeiboReposter.bodies.length)]);
-
-                    WeiboReposter.startAutoRepost(weiboId, interval);
-
-                    // 更新按钮文本
-                    toggleButton.innerText = '停止转发';
-
-                    // 启用按钮
-                    toggleButton.disabled = false;
-                } else {
-                    WeiboReposter.stopAutoRepost();
-
-                    // 更新按钮文本
-                    toggleButton.innerText = '开始转发';
-
-                    // 修改按钮背景颜色为红色
-                    toggleButton.style.background = '#ff4d4f';
-                }
-            }, 300));
-
-            document.getElementById('clear-logs').addEventListener('click', debounce(() => {
-                WeiboReposter.clearLogsAndStats();
-            }, 300));
-
-            // 初始化统计面板
-            this.updateStatsPanel();
-
-            // 添加这一行代码以确保 this.panel 被正确引用
-            this.panel = panel;
-        }
-
-        // 拖动逻辑
-        static startDrag(e) {
-            this.isDragging = true;
-            this.startX = e.clientX - this.panel.offsetLeft;
-            this.startY = e.clientY - this.panel.offsetTop;
-        }
-
-        static handleDrag(e) {
-            if (this.isDragging) {
-                const x = e.clientX - this.startX;
-                const y = e.clientY - this.startY;
-                this.panel.style.left = `${x}px`;
-                this.panel.style.top = `${y}px`;
-            }
-        }
-
-        static stopDrag() {
-            this.isDragging = false;
+            CONFIG.currentCycle++;
+            GM_setValue('currentCycle', CONFIG.currentCycle);
+            updatePanel();
+        } catch (error) {
+            handleError(error);
         }
     }
 
-    // 添加防抖函数
-    function debounce(func, wait) {
-        let timeout;
-        return function(...args) {
-            const context = this;
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(context, args), wait);
+    // ================= UI系统 =================
+    function createControlPanel() {
+        const panel = document.createElement('div');
+        panel.id = 'ds-control-panel';
+        panel.style = `position:fixed;top:100px;right:20px;background:#fff;
+            padding:15px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);
+            z-index:9999;min-width:220px;`;
+
+        panel.innerHTML = `
+            <div style="margin-bottom:12px;font-weight:500;border-bottom:1px solid #eee;padding-bottom:8px;">
+                循环控制 (${CONFIG.currentCycle}/${CONFIG.maxCycles})
+            </div>
+
+            <div style="margin-bottom:10px;">
+                <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">当前可用数字</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <progress value="${availableNumbers.length}" max="${CONFIG.numberPoolSize}"
+                        style="flex:1;height:8px;"></progress>
+                    <span style="font-size:12px;">${availableNumbers.length}/${CONFIG.numberPoolSize}</span>
+                </div>
+            </div>
+            <button id="ds-toggleBtn" style="width:100%;padding:8px;background:${isRunning ? '#dc3545' : '#28a745'};
+                color:#fff;border:none;border-radius:4px;cursor:pointer;">
+                ${isRunning ? '停止运行' : '开始运行'}
+            </button>
+        `;
+
+        panel.querySelector('#ds-toggleBtn').addEventListener('click', function() {
+            isRunning = !isRunning;
+            GM_setValue('isRunning', isRunning);
+            updatePanel();
+            if (isRunning) startOperation();
+            else stopOperation();
+        });
+
+        document.body.appendChild(panel);
+    }
+
+    // ================= 工具函数 =================
+    function generateNumber() {
+        if (availableNumbers.length < 10) {
+            availableNumbers = [...shuffleArray(usedNumbers), ...availableNumbers];
+            usedNumbers = [];
+        }
+        const num = availableNumbers.pop();
+        usedNumbers.push(num);
+        GM_setValue('availableNumbers', availableNumbers);
+        GM_setValue('usedNumbers', usedNumbers);
+        return num;
+    }
+
+    async function findElement(selector, retries = 5) {
+        for (let i = 0; i < retries; i++) {
+            const el = document.querySelector(selector);
+            if (el) return el;
+            await new Promise(r => setTimeout(r, 800 + i * 200));
+        }
+        throw new Error('元素查找失败: ' + selector);
+    }
+
+    async function humanClick(el) {
+        const rect = el.getBoundingClientRect();
+        const x = rect.left + rect.width * (0.3 + Math.random() * 0.4);
+        const y = rect.top + rect.height * (0.3 + Math.random() * 0.4);
+
+        el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+        await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+        el.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
+        await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+        el.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+        el.click();
+    }
+
+    async function humanType(element, text) {
+        await element.focus();
+        await delay(50);
+        element.value = '';
+        for (const char of text) {
+            element.value += char;
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+            await delay(50 + Math.random() * 20);
+        }
+    }
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // ================= 生命周期管理 =================
+    function startOperation() {
+        if (timer) clearTimeout(timer);
+        timer = setInterval(() => {
+            if (!isRunning) return;
+            performRepost();
+            setTimeout(() => window.location.reload(), CONFIG.refreshDelay);
+        }, CONFIG.refreshDelay + getRandomDelay());
+    }
+
+    function stopOperation() {
+        clearInterval(timer);
+        isRunning = false;
+        GM_setValue('isRunning', false);
+        updatePanel();
+    }
+
+    function getRandomDelay() {
+        return Math.floor(Math.random() * (CONFIG.requestRange[1] - CONFIG.requestRange[0])) + CONFIG.requestRange[0];
+    }
+
+    function updatePanel() {
+        const panel = document.getElementById('ds-control-panel');
+        if (panel) {
+            panel.querySelector('#ds-toggleBtn').textContent = isRunning ? '停止运行' : '开始运行';
+            panel.querySelector('#ds-toggleBtn').style.background = isRunning ? '#dc3545' : '#28a745';
+            panel.querySelector('progress').value = availableNumbers.length;
+            panel.querySelector('span').textContent = `${availableNumbers.length}/${CONFIG.numberPoolSize}`;
+            panel.querySelector('div:first-child').textContent =
+                `循环控制 (${CONFIG.currentCycle}/${CONFIG.maxCycles})`;
+        }
+    }
+
+    function showNotification(text, color = '#4CAF50') {
+        const notice = document.createElement('div');
+        notice.style = `position:fixed;top:20px;right:20px;padding:12px;background:${color};
+            color:#fff;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:10000;`;
+        notice.textContent = text;
+        document.body.appendChild(notice);
+        setTimeout(() => notice.remove(), 3000);
+    }
+
+    function handleError(error) {
+        console.error('[系统错误]', error);
+        showNotification('⚠️ 操作失败: ' + error.message, '#ff5722');
+        CONFIG.currentCycle = Math.max(0, CONFIG.currentCycle - 1);
+        GM_setValue('currentCycle', CONFIG.currentCycle);
+        updatePanel();
+    }
+
+    function resetAllState() {
+        GM_setValue('isRunning', false);
+        GM_setValue('usedNumbers', []);
+        GM_setValue('currentCycle', 0)
+        GM_setValue('availableNumbers', initNumberPool());
+        window.location.reload();
+    }
+
+
+    // ================= 初始化 =================
+    function init() {
+        createControlPanel();
+        GM_registerMenuCommand('清除所有状态', resetAllState);
+        if (isRunning) startOperation();
+    }
+
+    // 启动系统
+    init();
+
+    const injectCode = () => {
+        // 拦截 XMLHttpRequest
+        const originalXhrOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url) {
+            if (url.includes('/ajax/statuses/normal_repost')) {
+                this.addEventListener('load', () => {
+                    window.dispatchEvent(new CustomEvent('WeiboAPIResponse', {
+                        detail: this.response
+                    }));
+                });
+            }
+            originalXhrOpen.apply(this, arguments);
         };
-    }
 
-    // 初始化控制面板
-    WeiboReposter.createControlPanel();
+        // 拦截 Fetch
+        const originalFetch = window.fetch;
+        window.fetch = async (...args) => {
+            const [input] = args;
+            if (typeof input === 'string' && input.includes('/ajax/statuses/normal_repost')) {
+                const response = await originalFetch(...args);
+                response.clone().json().then(data => {
+                    window.dispatchEvent(new CustomEvent('WeiboAPIResponse', { detail: data }));
+                });
+                return response;
+            }
+            return originalFetch(...args);
+        };
+    };
+
+    // 注入代码到页面上下文
+    const script = document.createElement('script');
+    script.textContent = `(${injectCode})();`;
+    document.documentElement.appendChild(script);
+    script.remove();
+
+    // 监听自定义事件（在油猴环境中处理数据）
+    window.addEventListener('WeiboAPIResponse', (e) => {
+        if (e.detail.includes('频繁') || e.detail.includes('验证码')) {
+            stopOperation();
+            showNotification('⚠️ 触发频率限制，已自动停止', '#ff5722');
+            CONFIG.currentCycle = Math.max(0, CONFIG.currentCycle - 1);
+            GM_setValue('currentCycle', CONFIG.currentCycle);
+            updatePanel();
+        }
+    });
 })();

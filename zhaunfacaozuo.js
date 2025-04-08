@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         微博智能转发工具
 // @namespace    http://tampermonkey.net/
-// @version      4.3
+// @version      4.4
 // @description  微博自动化工具
 // @author       路过的香菜丶
 // @match        *://weibo.com/*
@@ -24,7 +24,7 @@
         maxAttempts: 8,
         poolSize: 100,
         countdownColor: 'linear-gradient(135deg, #4CAF50 0%, #FFC107 50%, #F44336 100%)',
-        maxCycles: GM_getValue('maxCycles', 2) // 默认2次循环
+        maxCycles: 20
     };
 
     // ================= 全局状态管理 =================
@@ -33,7 +33,6 @@
     let countdownInterval = null;
     let usedNumbers = GM_getValue('usedNumbers', []);
     let availableNumbers = GM_getValue('availableNumbers', initializeNumberPool());
-    let cycleCount = GM_getValue('cycleCount', 0);
 
     // ================= 核心业务模块 =================
     function initializeNumberPool() {
@@ -45,10 +44,6 @@
     async function performRepostFlow() {
         try {
 
-            if (cycleCount >= CONFIG.maxCycles) {
-                emergencyStop("已完成设定循环次数");
-                return;
-            }
             const repostBtn = await retryableFind('.toolbar_retweet_1L_U5');
             await humanizedClick(repostBtn);
 
@@ -153,7 +148,6 @@
             this.element = container;
             this.progress = container.querySelector('.countdown-progress');
             this.text = container.querySelector('.countdown-text');
-            this.cycleDisplay = container.querySelector('.cycle-display');
 
             container.addEventListener('click', () => {
                 if (confirm('立即停止自动循环？')) {
@@ -188,12 +182,6 @@
             }
         },
 
-        updateCycleDisplay() {
-            if (this.cycleDisplay) {
-                this.cycleDisplay.textContent =
-                    `${cycleCount}/${CONFIG.maxCycles}次循环`;
-            }
-        }
     };
 
     function createControlButton() {
@@ -315,23 +303,14 @@
 
     // ================= 系统初始化 =================
     (function init() {
-        checkCycleLimit();
         CountdownManager.init();
         const btn = createControlButton();
         GM_addValueChangeListener('autoRepostStatus', handleStatusChange);
         GM_registerMenuCommand('重置数字池', resetNumberPool);
         GM_registerMenuCommand('清除所有状态', resetAllState);
-        GM_registerMenuCommand('设置循环次数', setMaxCycles);
+
         if (isRunning) initializeOperation();
     })();
-
-    function checkCycleLimit() {
-        if (cycleCount >= CONFIG.maxCycles) {
-            emergencyStop("已达到最大循环次数");
-            return false;
-        }
-        return true;
-    }
 
     function handleStatusChange(key, oldVal, newVal) {
         isRunning = newVal;
@@ -340,7 +319,6 @@
     }
 
     function initializeOperation() {
-        if (!checkCycleLimit()) return;
         clearTimeout(operationTimer);
         operationTimer = setTimeout(() => {
             performRepostFlow().then(schedulePageRefresh).catch(console.error);
@@ -348,9 +326,6 @@
     }
 
     function schedulePageRefresh() {
-        cycleCount++;
-        GM_setValue('cycleCount', cycleCount);
-        CountdownManager.updateCycleDisplay();
         let remaining = CONFIG.refreshDelay;
         CountdownManager.show();
         GM_setValue('countdownRemaining', remaining);
@@ -365,12 +340,7 @@
                 clearInterval(countdownInterval);
                 CountdownManager.hide();
                 GM_setValue('countdownRemaining', 0);
-                if (cycleCount >= CONFIG.maxCycles) {
-                    GM_setValue('cycleCount', 0);
-                    const btn = createControlButton();
-                    btn.click();
-                    alert(`已完成 ${CONFIG.maxCycles} 次循环`);
-                }
+
                 window.location.reload();
                 return;
             }
@@ -380,11 +350,18 @@
         }, 100);
     }
 
-    function setMaxCycles() {
-        const value = parseInt(CONFIG.maxCycles);
-        GM_setValue('maxCycles', value);
-        CountdownManager.updateCycleDisplay();
+    function showCompletionNotice() {
+        const notice = document.createElement('div');
+        notice.innerHTML = `
+            <div style="position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; 
+                padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                ✅ 已完成预设的 ${CONFIG.maxCycles} 次循环
+            </div>
+        `;
+        document.body.appendChild(notice);
+        setTimeout(() => notice.remove(), 5000);
     }
+
     function resetNumberPool() {
         usedNumbers = [];
         availableNumbers = initializeNumberPool();
@@ -398,14 +375,11 @@
         GM_setValue('usedNumbers', []);
         GM_setValue('availableNumbers', initializeNumberPool());
         GM_setValue('countdownRemaining', 0);
-        GM_setValue('cycleCount', 0);
-        cycleCount = 0;
         window.location.reload();
     }
 
     function emergencyStop(reason) {
         stopOperation();
-        showErrorAlert(`已停止: ${reason}`);
         console.error(`[Emergency Stop] ${reason}`);
     }
 
@@ -441,8 +415,6 @@
         XMLHttpRequest.prototype.open = function(method, url) {
             if (url.includes('/ajax/statuses/normal_repost')) {
                 this.addEventListener('load', () => {
-                    console.log('捕获响应:', this.response);
-                    // 将数据传递到油猴环境（需自定义事件处理）
                     window.dispatchEvent(new CustomEvent('WeiboAPIResponse', {
                         detail: this.response
                     }));
@@ -458,7 +430,6 @@
             if (typeof input === 'string' && input.includes('/ajax/statuses/normal_repost')) {
                 const response = await originalFetch(...args);
                 response.clone().json().then(data => {
-                    console.log('Fetch响应:', data);
                     window.dispatchEvent(new CustomEvent('WeiboAPIResponse', { detail: data }));
                 });
                 return response;
@@ -475,7 +446,6 @@
 
     // 监听自定义事件（在油猴环境中处理数据）
     window.addEventListener('WeiboAPIResponse', (e) => {
-        console.log('油猴捕获数据:', e.detail);
         if (e.detail.includes('频繁') || e.detail.includes('验证码')) {
             const btn = createControlButton();
             btn.click();
