@@ -1,0 +1,2 @@
+[console_scripts]
+txvideolike = txvideolike.cli:main

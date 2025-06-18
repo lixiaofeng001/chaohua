@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+txvideolike/__init__.py
+txvideolike/cli.py
+txvideolike/core.py
+txvideolike.egg-info/PKG-INFO
+txvideolike.egg-info/SOURCES.txt
+txvideolike.egg-info/dependency_links.txt
+txvideolike.egg-info/entry_points.txt
+txvideolike.egg-info/requires.txt
+txvideolike.egg-info/top_level.txt

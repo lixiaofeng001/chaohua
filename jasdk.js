@@ -77,24 +77,28 @@ JA.net = function(){
 }();
 JA.rest = function(){
 	var wb = {};
+	//获取关注列表
 	wb.friendships_friends = function(uid, page, oCallback, errCallback){
 		return JA.net.get("https://m.weibo.cn/api/container/getSecond", 
 			{containerid: "100505"+uid+"_-_FOLLOWERS", page:page}, function(sResult){
 			__restCallbackHandler(1, null, sResult, oCallback, errCallback);
 		});
 	};
+	//获取关注列表v2
 	wb.friendships_friends_v2 = function(uid, page, oCallback, errCallback){
 		return JA.net.get("https://www.weibo.com/ajax/profile/followContent?__ref", 
 			{sortType: "all", page:page}, function(sResult){
 			__restCallbackHandler(1, null, sResult, oCallback, errCallback);
 		});
 	};
+	//获取粉丝列表
 	wb.friendships_followers = function(uid, page, oCallback, errCallback){
 		return JA.net.get("https://m.weibo.cn/api/container/getSecond", 
 			{containerid: "100505"+uid+"_-_FANS", page:page}, function(sResult){
 			__restCallbackHandler(1, null, sResult, oCallback, errCallback);
 		});
 	};
+	//获取粉丝列表v2
 	wb.friendships_followersv2 = function(uid, page, oCallback, errCallback){
 		args = {containerid: "100505"+uid+"_-_FANS", page:page}
 		return xgj.ajaxGet("https://m.weibo.cn/api/container/getSecond?containerid="+"100505"+uid+"_-_FANS&page="+page, function(sResult){
@@ -102,13 +106,14 @@ JA.rest = function(){
 			__restCallbackHandler(1, null, sResult, oCallback, errCallback);
 		});
 	};
+	//获取关注列表v3
 	wb.friendships_followers_v3 = function(uid, page, oCallback, errCallback){
 		let args = {uid: uid, page:page, relate:"fans", type:"fans", fansSortType:"followTime"}
 		return JA.net.get("https://www.weibo.com/ajax/friendships/friends?__ref", args, function(sResult){
 			sResult = JSON.parse(sResult);
 			__restCallbackHandler(1, null, sResult, oCallback, errCallback);
 		});
-	};	
+	};
 	wb.friends_timeline = function(next_cursor, oCallback, errCallback){
 		return JA.net.get("https://m.weibo.cn/feed/friends", 
 			{max_id:next_cursor}, function(sResult){

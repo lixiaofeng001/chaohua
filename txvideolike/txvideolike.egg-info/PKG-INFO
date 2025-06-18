@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: txvideolike
+Version: 0.1.0
+Summary: 腾讯视频弹幕自动点赞命令行工具
+Author-email: 路过的香菜丶 <1970767389@qq.com>
+Requires-Dist: requests>=2.25

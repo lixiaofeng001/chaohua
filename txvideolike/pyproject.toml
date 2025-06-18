@@ -1,0 +1,9 @@
+[project]
+name = "txvideolike"
+version = "0.1.0"
+description = "腾讯视频弹幕自动点赞命令行工具"
+authors = [{name="路过的香菜丶", email="1970767389@qq.com"}]
+dependencies = ["requests>=2.25"]
+
+[project.scripts]
+txvideolike = "txvideolike.cli:main"
