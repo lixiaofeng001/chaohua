@@ -1,0 +1,5 @@
+requests==2.31.0
+PyQt5==5.15.9
+pyarmor==8.4.2
+pyinstaller==6.14.1
+websocket-client==1.7.0

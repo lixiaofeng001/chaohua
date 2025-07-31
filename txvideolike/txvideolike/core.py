@@ -8,6 +8,9 @@ import re
 from pathlib import Path
 import threading
 from queue import Queue
+from concurrent.futures import ThreadPoolExecutor
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # 配置及持久化文件路径
 WORKDIR = Path.cwd()
@@ -42,12 +45,42 @@ MAX_RETRIES  = 5
 INITIAL_WAIT = 60
 MAX_WAIT     = 15 * 60
 DAILY_QUOTA  = 20000
+MAX_WORKERS  = 4  # 并发请求数
+REQUEST_TIMEOUT = 10  # 请求超时时间
 
 # 线程锁
 progress_lock = threading.Lock()
 quota_lock    = threading.Lock()
 
 # 加载/保存 JSON
+
+def load_progress(path):
+    """
+    支持两种格式：
+    1. 旧格式：整个文件是一个 JSON 数组
+    2. 新格式：每行一个 JSON 对象（JSON Lines）
+    """
+    if not path.exists():
+        return []
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+        if not text:
+            return []
+        if text.startswith("["):
+            # 旧格式
+            return json.loads(text)
+        # 新格式
+        lines = [json.loads(line) for line in text.splitlines() if line.strip()]
+        return lines
+    except Exception:
+        return []
+
+def append_progress(path, rec):
+    """
+    追加一条记录到 progress.json，每行一个 JSON 对象。
+    """
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 def load_json(path, default=None):
     if not path.exists():
@@ -71,7 +104,7 @@ if not isinstance(all_cookies, list):
 
 videos     = load_json(VIDEO_CODES_FILE, []) or []
 used_today = load_json(QUOTA_FILE, {}) or {}
-progress   = load_json(PROGRESS_FILE, []) or []
+progress   = load_progress(PROGRESS_FILE)
 
 # 检测 cookie 有效期
 
@@ -114,6 +147,18 @@ def refresh_token(cookie):
 
 def make_session(cookie):
     s = requests.Session()
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=[500, 502, 503, 504]
+    )
+    adapter = HTTPAdapter(
+        max_retries=retry_strategy,
+        pool_connections=MAX_WORKERS,
+        pool_maxsize=MAX_WORKERS
+    )
+    s.mount("http://", adapter)
+    s.mount("https://", adapter)
     s.headers.update({
         "Content-Type": "application/json",
         "User-Agent":    "Mozilla/5.0",
@@ -125,8 +170,33 @@ def make_session(cookie):
 
 def fetch_barrages_segment(sess, vid, start_ms):
     url = f"https://dm.video.qq.com/barrage/segment/{vid}/t/v1/{start_ms}/{start_ms+SEGMENT_MS}"
-    r = sess.get(url); r.raise_for_status()
-    return r.json().get('barrage_list', [])
+    try:
+        r = sess.get(url, timeout=REQUEST_TIMEOUT)
+        r.raise_for_status()
+        return r.json().get('barrage_list', [])
+    except Exception as e:
+        print(f"获取弹幕失败: {e}")
+        return []
+
+# 并发获取所有分段的弹幕
+
+def fetch_all_barrages(sess, vid, duration_ms):
+    segments = []
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = []
+        for start_ms in range(0, duration_ms, SEGMENT_MS):
+            futures.append(executor.submit(fetch_barrages_segment, sess, vid, start_ms))
+        
+        for i, future in enumerate(futures):
+            try:
+                items = future.result()
+                if items:
+                    segments.extend(items)
+                    print(f"[{vid}] 分段{i+1}, 获取{len(items)}条弹幕")
+            except Exception as e:
+                print(f"[{vid}] 分段{i+1}获取失败: {e}")
+    
+    return segments
 
 # 点赞逻辑
 
@@ -173,48 +243,47 @@ def worker(idx, cookie):
     except Exception as e:
         print(f"[账号{idx+1}] 刷新失败，跳过: {e}")
         return f"账号{idx+1} 跳过"
+    
     sess = make_session(cookie)
     liked = 0; attempts = 0
     done = {(r['user_idx'],r['vid'],r['id']) for r in progress}
+    
     for vid in videos:
-        t = 0; seg = 0
-        while True:
-            items = fetch_barrages_segment(sess, vid, t)
-            if not items: break
-            seg += 1
-            print(f"[账号{idx+1}][{vid}] 分段{seg}, {len(items)}条")
-            for dm in items:
-                attempts += 1
-                if int(dm.get('up_count',0)) >= 50: continue
-                if any(kw in dm.get('content','') for kw in BLOCK_KEYWORDS): continue
-                key=(idx+1,vid,dm['id'])
-                if key in done: continue
-                with quota_lock:
-                    used=used_today.get(str(idx+1),0)
-                    if used>=DAILY_QUOTA:
-                        print(f"[账号{idx+1}] 今日配额用尽")
-                        save_json(QUOTA_FILE, used_today)
-                        return f"账号{idx+1} 完成"
-                    used_today[str(idx+1)] = used+1
+        print(f"[账号{idx+1}][{vid}] 开始获取弹幕...")
+        items = fetch_all_barrages(sess, vid, 7200000)  # 假设视频最长2小时
+        print(f"[账号{idx+1}][{vid}] 共获取{len(items)}条弹幕")
+        
+        for dm in items:
+            attempts += 1
+            if int(dm.get('up_count',0)) >= 50: continue
+            if any(kw in dm.get('content','') for kw in BLOCK_KEYWORDS): continue
+            key=(idx+1,vid,dm['id'])
+            if key in done: continue
+            
+            with quota_lock:
+                used=used_today.get(str(idx+1),0)
+                if used>=DAILY_QUOTA:
+                    print(f"[账号{idx+1}] 今日配额用尽")
                     save_json(QUOTA_FILE, used_today)
-                try:
-                    ok = like_barrage_with_backoff(sess, vid, dm['id'])
-                except RuntimeError:
-                    cookie=refresh_token(cookie)
-                    all_cookies[idx]=cookie
-                    save_json(COOKIES_FILE,all_cookies)
-                    sess=make_session(cookie)
-                    ok = like_barrage_with_backoff(sess, vid, dm['id'])
+                    return f"账号{idx+1} 完成"
+                used_today[str(idx+1)] = used+1
+                save_json(QUOTA_FILE, used_today)
+            
+            try:
+                ok = like_barrage_with_backoff(sess, vid, dm['id'])
                 if ok:
                     liked += 1
                     rec={'user_idx':idx+1,'vid':vid,'id':dm['id'],'content':dm.get('content'),'time':int(time.time())}
                     with progress_lock:
                         progress.append(rec)
-                        save_json(PROGRESS_FILE,progress)
+                        append_progress(PROGRESS_FILE, rec)
                 if attempts % 50 == 0:
                     print(f"[账号{idx+1}] 尝试{attempts}次, 点赞{liked}次")
                 time.sleep(random.uniform(0.2,0.5))
-            t += SEGMENT_MS
+            except Exception as e:
+                print(f"[账号{idx+1}] 点赞失败: {e}")
+                continue
+    
     print(f"[账号{idx+1}] 完成: 尝试{attempts}次, 点赞{liked}次")
     return f"账号{idx+1} 完成"
 
